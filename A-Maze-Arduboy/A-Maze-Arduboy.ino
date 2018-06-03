@@ -218,13 +218,15 @@ void setup() {
   
   
   arduboy.clear();
-  
+  arduboy.setFrameRate(30);
 }
 
 
 
 void loop() {
-  
+   // pause render until it's time for the next frame
+  if (!(arduboy.nextFrame()))
+    return; 
   
   arduboy.pollButtons();
   arduboy.clear();
