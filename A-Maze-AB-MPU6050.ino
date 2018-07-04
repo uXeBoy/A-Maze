@@ -7,13 +7,23 @@
  
 */
 
+//#include <SPI.h>
+#include <Wire.h>
+//#include <Adafruit_GFX.h>
+//#include <Adafruit_SSD1306.h>
 #include <Arduboy2.h>
 #include <ArduboyPlaytune.h>
-
 // make an instance of arduboy used for many functions
 Arduboy2 arduboy;
+//MPU
+const int MPU=0x68;  // I2C address of the MPU-6050
+int16_t AcX,AcY;//,AcZ,Tmp,GyX,GyY,GyZ;
+//Display
 
-
+//#define OLED_DC     4
+//#define OLED_CS     12
+//#define OLED_RESET  6
+//Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
 ArduboyPlaytune tunes(arduboy.audio.enabled);
 
 
@@ -74,6 +84,28 @@ const unsigned char checker [] PROGMEM = {
   0x0a, 0x05, 0x0a, 0x05, 
 };
 
+
+/*const int button1Pin = A2; //LEFT
+const int button2Pin = A1; //RIGHT
+const int button3Pin = A0; //UP
+const int button4Pin = A3; //DOWN
+const int button5Pin = 7; //A
+const int button6Pin = 0; //B
+const int button7Pin = 8; //MENU
+
+const int sound = 5; 
+
+int button1State = 0;
+int button2State = 0;
+int button3State = 0;
+int button4State = 0;
+int button5State = 0;
+int button6State = 0;
+int button7State = 0;
+
+
+#define ACTIVATED LOW
+*/
 #define DELAYMULTIPLIER  0
 
 #define MAZEHEIGHT  32
@@ -135,6 +167,29 @@ void setup() {
   arduboy.begin();
   Serial.begin(9600);
   arduboy.initRandomSeed();
+  /*pinMode(button1Pin, INPUT);
+  pinMode(button2Pin, INPUT);
+  pinMode(button3Pin, INPUT);
+  pinMode(button4Pin, INPUT);
+  pinMode(button5Pin, INPUT);
+  pinMode(button6Pin, INPUT);
+  pinMode(button7Pin, INPUT);
+
+  digitalWrite(button1Pin, HIGH);
+  digitalWrite(button2Pin, HIGH);
+  digitalWrite(button3Pin, HIGH);
+  digitalWrite(button4Pin, HIGH);
+  digitalWrite(button5Pin, HIGH);
+  digitalWrite(button6Pin, HIGH);
+  digitalWrite(button7Pin, HIGH);
+  // or just 
+  // pinMode(button1Pin, INPUT_PULLUP)
+  // etc
+  
+ // pinModetunes( OUTPUT);
+
+  //pinMode(13,OUTPUT);
+  */
 // audio setup
   tunes.initChannel(PIN_SPEAKER_1);
 #ifndef AB_DEVKIT
@@ -147,7 +202,13 @@ void setup() {
 #endif
   //randomSeed(analogRead(A5));
   delay(random(2,2000));
+//  arduboy.begin(SSD1306_SWITCHCAPVCC);
   arduboy.clear();
+    // Initialize MPU
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);  // PWR_MGMT_1 register
+  Wire.write(0);     // set to zero (wakes up the MPU-6050)
+  Wire.endTransmission(true);
 
   // splash
   ////arduboy.setTextColor(WHITE);
@@ -187,6 +248,8 @@ void setup() {
   arduboy.display();
   tunes.tone(1500,5);
   delay(100);
+    // limits the frames per second
+  arduboy.setFrameRate(60);
   arduboy.clear();
   //arduboy.drawBitmap(15, 24, splash1 , 48, 26, WHITE);
   //arduboy.drawBitmap(48, 24, splash2 , 80, 40, WHITE);
@@ -218,16 +281,33 @@ void setup() {
   
   
   arduboy.clear();
-  arduboy.setFrameRate(30);
+  
 }
 
 
 
 void loop() {
-   // pause render until it's time for the next frame
-  if (!(arduboy.nextFrame()))
-    return; 
   
+  /*button1State = digitalRead(button1Pin);
+  button2State = digitalRead(button2Pin);
+  button3State = digitalRead(button3Pin);
+  button4State = digitalRead(button4Pin);
+  button5State = digitalRead(button5Pin);
+  button6State = digitalRead(button6Pin);
+  button7State = digitalRead(button7Pin);
+*/
+
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(true);
+  Wire.requestFrom(MPU,14,true);  // request a total of 14 registers
+  AcX=Wire.read()<<8|Wire.read();  // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)    
+  AcY=Wire.read()<<8|Wire.read();  // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+//  AcZ=Wire.read()<<8|Wire.read();  // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+//  Tmp=Wire.read()<<8|Wire.read();  // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+//  GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+//  GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+//  GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
   arduboy.pollButtons();
   arduboy.clear();
 
@@ -237,7 +317,7 @@ void loop() {
   
   
   /* ------- BUTTON 1 - LEFT ------- */
-  if(arduboy.pressed(LEFT_BUTTON)){
+  if(AcY > 300){
     //generateMaze();
     if(posx-1>=0){
       wall=readPixel(posx-1,posy);
@@ -253,7 +333,7 @@ void loop() {
     delay(20);
   }
   /* ------- BUTTON 2 - RIGHT ------- */
-  if(arduboy.pressed(RIGHT_BUTTON)){
+  if(AcY < -300){
     if(posx+1<=MAZEHEIGHT){
       wall=readPixel(posx+1,posy);
       if(!wall){
@@ -268,7 +348,7 @@ void loop() {
     delay(20);
   }
   /* ------- BUTTON 3 - UP ------- */
-  if(arduboy.pressed(UP_BUTTON)){
+  if(AcX < 300){
     if(posy-1>=2){
       wall=readPixel(posx,posy-1);
       if(!wall){
@@ -283,7 +363,7 @@ void loop() {
     delay(20);
   }
   /* ------- BUTTON 4 - DOWN ------- */
-  if(arduboy.pressed(DOWN_BUTTON)){
+  if(AcX > 300){
     if(posy+1<=MAZEWIDTH){
       wall=readPixel(posx,posy+1);
       if(!wall){
@@ -297,8 +377,8 @@ void loop() {
     }
     delay(20);
   }
-//Unused Button stuff
-  /*if(arduboy.pressed(A_BUTTON)){
+
+  if(arduboy.pressed(A_BUTTON)){
     arduboy.fillCircle(20,30,5,WHITE);
   }
   if(arduboy.pressed(B_BUTTON)){
@@ -307,7 +387,6 @@ void loop() {
   if(arduboy.pressed(A_BUTTON |B_BUTTON)){
     arduboy.fillCircle(80,30,5,WHITE);
   }
-  */
 
   
   arduboy.setCursor(0,0);
